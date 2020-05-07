@@ -1,0 +1,9 @@
+-Xms2G
+-Xmx4G
+-Xss10M
+-XX:MaxInlineLevel=18
+-Dproduction=true
+-XX:+UseParallelGC
+-XX:+UseNUMA
+-XX:+UseAdaptiveSizePolicy
+-XX:+AggressiveOpts
