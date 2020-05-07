@@ -1,8 +1,6 @@
 package fix
 
-sealed trait Test {
-  def visit[A](visitor: Test.Visitor[A]): A
-}
+sealed trait Test { def visit[A](visitor: Test.Visitor[A]): A }
 
 object Test {
   case object Foo extends Test {
