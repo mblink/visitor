@@ -15,11 +15,6 @@ inThisBuild(
     scalacOptions ++= List(
       "-Yrangepos",
       "-P:semanticdb:synthetics:on"
-    ),
-    scalacOptions --= Seq(
-      "-language:existentials",
-      "-language:experimental.macros",
-      "-language:implicitConversions"
     )
   )
 )
@@ -31,7 +26,9 @@ lazy val rules = project.settings(
   libraryDependencies ++= Seq(
     "ch.epfl.scala" %% "scalafix-core" % V.scalafixVersion,
     "ch.epfl.scala" %% "scalafix-rules" % V.scalafixVersion
-  )
+  ),
+  scalacOptions -= "-Ywarn-unused:patvars",
+  addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full)
 )
 
 lazy val input = project.settings(skip in publish := true)
