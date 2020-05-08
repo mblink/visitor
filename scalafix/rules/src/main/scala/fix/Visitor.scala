@@ -7,7 +7,7 @@ import scala.meta.contrib.equality.Structurally
 
 class Visitor extends SyntacticRule("Visitor") {
   override def fix(implicit doc: SyntacticDocument): Patch =
-    findAdtTpes.map(tpe => tpe.patch + tpe.patchCompanion).asPatch
+    findAdtTpes.map(_.patch).asPatch
 
   private def findAdtTpes(implicit doc: SyntacticDocument): List[AdtTpe] = {
     def go(scope: List[Tree], tree: Tree): List[AdtTpe] =
@@ -20,7 +20,10 @@ class Visitor extends SyntacticRule("Visitor") {
     go(Nil, doc.tree)
   }
 
-  private def upsertStat[T: Extract[?, Stat]: Replace[?, Stat], A <: Stat](tree: T)(stat: A)(pf: PartialFunction[Stat, A]): T = {
+  private def upsertStat[T, A <: Stat](tree: T)(stat: A)(pf: PartialFunction[Stat, A])(
+    implicit extract: Extract[T, Stat],
+    replace: Replace[T, Stat]
+  ): T = {
     val (wasReplaced, updStats) = tree.extract[Stat].foldRight((false, List[Stat]())) { case (t, (replaced, stats)) =>
       pf.lift(t) match {
         case Some(_) => (true, stat :: stats)
@@ -58,9 +61,6 @@ class Visitor extends SyntacticRule("Visitor") {
     lazy val updatedTree: Tree =
       run.fold(_.copy(templ = updatedTemplate), _.copy(templ = updatedTemplate))
 
-    lazy val patch: Patch =
-      Patch.replaceTree(tree, updatedTree.syntax)
-
     private def handleObject(obj: Defn.Object, parents: List[Defn.Object]): (Defn.Object, List[AdtMember]) = {
       val (updStats, members) = obj.templ.stats.foldRight((List[Stat](), List[AdtMember]())) { case (s, (ss, ms)) =>
         val (upd, foundMs) = findMembers(s, parents :+ obj)
@@ -88,16 +88,19 @@ class Visitor extends SyntacticRule("Visitor") {
       }
     """
 
-    lazy val patchCompanion: Patch = companion match {
-      case Some(obj) =>
-        val (updObj, members) = findMembers(obj, Nil)
-        Patch.replaceTree(obj, upsertStat(updObj)(visitorTrait(members)) {
-          case t @ Defn.Trait(_, Type.Name("Visitor"), _, _, _) => t
-        }.syntax)
-
-      // no companion means no ADT members
-      case None => Patch.empty
+    def patchCompanion(obj: Defn.Object): Patch = {
+      val (updObj, members) = findMembers(obj, Nil)
+      Patch.replaceTree(obj, upsertStat(updObj)(visitorTrait(members)) {
+        case t @ Defn.Trait(_, Type.Name("Visitor"), _, _, _) => t
+      }.syntax)
     }
+
+    lazy val patch: Patch =
+      companion match {
+        // only patch ADTs with companions
+        case Some(obj) => Patch.replaceTree(tree, updatedTree.syntax) + patchCompanion(obj)
+        case None => Patch.empty
+      }
   }
 
   case class AdtMember(adt: AdtTpe, obj: Defn.Object, parents0: List[Defn.Object]) {
